@@ -28,7 +28,7 @@ class AuthController extends Controller
             'address_line' => $request->role === 'client' ? 'required|string|max:255' : 'nullable',            // validaciones fija siendo profesional
             'profession' => 'required_if:role,professional|in:Pilates,Barberia,Carpinteria,Electricidad',
             'has_physical_shop' => 'required_if:role,professional|boolean',
-            'shop_address' => 'required_if:has_physical_shop,true|string|max:255',
+            'shop_address' => 'required_if:has_physical_shop,true|nullable|string|max:255',
         ]);
 
         // creacion de usuario en la tabla 'users'
