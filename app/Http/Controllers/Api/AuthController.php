@@ -25,9 +25,7 @@ class AuthController extends Controller
             'phone' => 'nullable|string',
             
             // direccion obligatoria de cliente, pero no de profesional
-            'address_line' => 'required_if:role,client|string|max:255',
-            
-            // validaciones fija siendo profesional
+            'address_line' => $request->role === 'client' ? 'required|string|max:255' : 'nullable',            // validaciones fija siendo profesional
             'profession' => 'required_if:role,professional|in:Pilates,Barberia,Carpinteria,Electricidad',
             'has_physical_shop' => 'required_if:role,professional|boolean',
             'shop_address' => 'required_if:has_physical_shop,true|string|max:255',
