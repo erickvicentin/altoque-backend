@@ -65,13 +65,11 @@ php artisan migrate
 ```
 
 ### 6. Levantar el Servidor Local
-Para encender el backend y dejarlo escuchando peticiones, ejecuta:
-
+Para que la aplicación móvil (tanto en emuladores como en dispositivos físicos) pueda conectarse al backend, es obligatorio levantar Laravel exponiendo el host:
 ```bash
-php artisan serve
+php artisan serve --host=0.0.0.0
 ```
-
-El servidor se iniciará por defecto en: ```http://127.0.0.1:8000```
+El servidor se iniciará en: http://0.0.0.0:8000 (accesible externamente mediante tu IP local).
 
 # 📬 Endpoints Disponibles (Pruebas iniciales en Postman)
 * Registro de Usuarios: ```POST /api/register``` (Soporta flujos independientes para roles ```client``` y ```professional```).
