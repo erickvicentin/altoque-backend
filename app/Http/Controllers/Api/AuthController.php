@@ -101,4 +101,14 @@ class AuthController extends Controller
             'user' => $user
         ]);
     }
+
+    public function logout(Request $request)
+{
+    // eliminamos el token utilizado para esta sesion asi se cierra la misma
+    $request->user()->currentAccessToken()->delete();
+
+    return response()->json([
+        'message' => 'Sesion cerrada correctamente'
+    ]);
+}
 }
