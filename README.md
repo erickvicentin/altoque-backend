@@ -1,59 +1,80 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# AlToque - Backend API 🚀
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Este es el backend desarrollado en **Laravel** para el sistema de turnos multirubro **AlToque** (Programación III). Maneja la autenticación mediante tokens con Laravel Sanctum y la persistencia de datos en MySQL.
 
-## About Laravel
+## 🛠️ Requisitos previos
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Antes de empezar, asegúrate de tener instalado:
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **XAMPP** (con los módulos Apache y MySQL activos).
+- **Composer** (manejador de dependencias de PHP).
+- **PHP 8.2+** (instalado por defecto con las versiones actuales de XAMPP).
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 🚀 Pasos para levantar el proyecto localmente (Para el Equipo)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Si acabas de clonar el repositorio por primera vez, sigue estos pasos en la terminal de tu computadora:
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### 1. Instalar las dependencias de PHP
 
-## Laravel Sponsors
+Descarga todos los paquetes necesarios del framework ejecutando:
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+```bash
+composer install
+```
+## 2. Configurar las Variables de Entorno
+El archivo ```.env``` original no se sube al repositorio por seguridad. Debes crear una copia local basada en la plantilla:
 
-### Premium Partners
+```bash
+cp .env.example .env
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Ahora, abre el archivo ```.env``` recién creado en tu editor y configura el bloque de la base de datos con tus credenciales de XAMPP:
 
-## Contributing
+```bash
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=altoque_db
+DB_USERNAME=root
+DB_PASSWORD=
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+(Nota: Recuerda entrar a tu phpMyAdmin y crear una base de datos vacía llamada altoque_db antes de continuar.).
 
-## Code of Conduct
+## 3. Generar la Clave de la Aplicación
+Genera el token de seguridad único para tu entorno local:
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+php artisan key:generate
+```
 
-## Security Vulnerabilities
+### 4. Instalar y configurar la API (Sanctum)
+Este comando instala el sistema de tokens para que la app de React Native y Postman puedan autenticarse:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+php artisan install:api
+```
 
-## License
+### 5. Ejecutar las Migraciones
+Crea la estructura unificada de las tablas de usuarios, perfiles y direcciones en tu MySQL ejecutando:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan migrate
+```
+
+### 6. Levantar el Servidor Local
+Para encender el backend y dejarlo escuchando peticiones, ejecuta:
+
+```bash
+php artisan serve
+```
+
+El servidor se iniciará por defecto en: ```http://127.0.0.1:8000```
+
+# 📬 Endpoints Disponibles (Pruebas iniciales en Postman)
+* Registro de Usuarios: ```POST /api/register``` (Soporta flujos independientes para roles ```client``` y ```professional```).
+* Inicio de Sesión: ```POST /api/login``` (Retorna el ```access_token``` necesario para peticiones protegidas).
+
+Asegúrate de agregar el Header ```Accept: application/json``` en todas tus peticiones en Postman.
