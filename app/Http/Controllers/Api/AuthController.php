@@ -65,7 +65,7 @@ class AuthController extends Controller
         // le creamos un token de autenticacion para que pueda usar la app inmediatamente despues de registrarse
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $user->load($user->role === 'client' ? 'address' : 'professionalProfile');
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
 
         return response()->json([
             'message' => 'Usuario registrado con éxito',
@@ -94,7 +94,7 @@ class AuthController extends Controller
         // si está todo bien le damos un token nuevo
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $user->load($user->role === 'client' ? 'address' : 'professionalProfile');
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
 
         return response()->json([
             'message' => 'Sesión iniciada correctamente',
@@ -146,7 +146,7 @@ class AuthController extends Controller
 
         if ($user->role === 'client') {
             Address::updateOrCreate(
-                ['user_id' => $user->id],
+                ['user_id' => $user->id, 'alias' => 'Principal'],
                 ['address_line' => $request->address_line]
             );
         } else if ($user->role === 'professional') {
@@ -172,7 +172,7 @@ class AuthController extends Controller
             }
         }
 
-        $user->load($user->role === 'client' ? 'address' : 'professionalProfile');
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
 
         return response()->json([
             'message' => 'Perfil actualizado con éxito',
