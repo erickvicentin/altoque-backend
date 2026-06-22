@@ -65,6 +65,8 @@ class AuthController extends Controller
         // le creamos un token de autenticacion para que pueda usar la app inmediatamente despues de registrarse
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
         return response()->json([
             'message' => 'Usuario registrado con éxito',
             'access_token' => $token,
@@ -92,6 +94,8 @@ class AuthController extends Controller
         // si está todo bien le damos un token nuevo
         $token = $user->createToken('auth_token')->plainTextToken;
 
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
         return response()->json([
             'message' => 'Sesión iniciada correctamente',
             'access_token' => $token,
@@ -101,12 +105,78 @@ class AuthController extends Controller
     }
 
     public function logout(Request $request)
-{
-    // eliminamos el token utilizado para esta sesion asi se cierra la misma
-    $request->user()->currentAccessToken()->delete();
+    {
+        // eliminamos el token utilizado para esta sesion asi se cierra la misma
+        $request->user()->currentAccessToken()->delete();
 
-    return response()->json([
-        'message' => 'Sesion cerrada correctamente'
-    ]);
-}
+        return response()->json([
+            'message' => 'Sesion cerrada correctamente'
+        ]);
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'birth_date' => 'nullable|date',
+            'gender' => 'nullable|string',
+            'phone' => 'nullable|string',
+            'address_line' => 'required_if:role,client|nullable|string|max:255',
+            'has_physical_shop' => 'sometimes|boolean',
+            'shop_address' => 'required_if:has_physical_shop,true|nullable|string|max:255',
+            'open_time_1' => 'nullable|string',
+            'close_time_1' => 'nullable|string',
+            'has_second_range' => 'sometimes|boolean',
+            'open_time_2' => 'nullable|string',
+            'close_time_2' => 'nullable|string',
+        ]);
+
+        $user->update([
+            'name' => $request->name,
+            'last_name' => $request->last_name,
+            'email' => $request->email,
+            'birth_date' => $request->birth_date,
+            'gender' => $request->gender,
+            'phone' => $request->phone,
+        ]);
+
+        if ($user->role === 'client') {
+            Address::updateOrCreate(
+                ['user_id' => $user->id, 'alias' => 'Principal'],
+                ['address_line' => $request->address_line]
+            );
+        } else if ($user->role === 'professional') {
+            $profile = ProfessionalProfile::where('user_id', $user->id)->first();
+            if ($profile) {
+                $updateData = [];
+                if ($request->has('has_physical_shop')) {
+                    $updateData['has_physical_shop'] = $request->has_physical_shop;
+                    $updateData['shop_address'] = $request->has_physical_shop ? $request->shop_address : null;
+                } else if ($request->has('shop_address')) {
+                    $updateData['shop_address'] = $request->shop_address;
+                }
+
+                if ($request->has('open_time_1')) $updateData['open_time_1'] = $request->open_time_1;
+                if ($request->has('close_time_1')) $updateData['close_time_1'] = $request->close_time_1;
+                if ($request->has('has_second_range')) $updateData['has_second_range'] = $request->has_second_range;
+                if ($request->has('open_time_2')) $updateData['open_time_2'] = $request->open_time_2;
+                if ($request->has('close_time_2')) $updateData['close_time_2'] = $request->close_time_2;
+
+                if (!empty($updateData)) {
+                    $profile->update($updateData);
+                }
+            }
+        }
+
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
+            'message' => 'Perfil actualizado con éxito',
+            'user' => $user
+        ]);
+    }
 }
