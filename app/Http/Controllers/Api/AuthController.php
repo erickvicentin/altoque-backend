@@ -22,7 +22,7 @@ class AuthController extends Controller
             'role' => 'required|in:client,professional',
             'birth_date' => 'nullable|date',
             'gender' => 'nullable|string',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', 'string', 'regex:/^\+\d{12}$/'],
             
             // direccion obligatoria de cliente, pero no de profesional
             'address_line' => $request->role === 'client' ? 'required|string|max:255' : 'nullable',            // validaciones fija siendo profesional
@@ -48,7 +48,8 @@ class AuthController extends Controller
             Address::create([
                 'user_id' => $user->id,
                 'address_line' => $request->address_line,
-                'alias' => 'Principal'
+                'alias' => 'Principal',
+                'is_default' => true
             ]);
         }
 
@@ -119,12 +120,12 @@ class AuthController extends Controller
         $user = $request->user();
 
         $request->validate([
-            'name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'name' => 'sometimes|required|string|max:255',
+            'last_name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
             'birth_date' => 'nullable|date',
             'gender' => 'nullable|string',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', 'string', 'regex:/^\+\d{12}$/'],
             'address_line' => 'required_if:role,client|nullable|string|max:255',
             'has_physical_shop' => 'sometimes|boolean',
             'shop_address' => 'required_if:has_physical_shop,true|nullable|string|max:255',
@@ -135,20 +136,32 @@ class AuthController extends Controller
             'close_time_2' => 'nullable|string',
         ]);
 
-        $user->update([
-            'name' => $request->name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'birth_date' => $request->birth_date,
-            'gender' => $request->gender,
-            'phone' => $request->phone,
-        ]);
+        $updateData = [];
+        if ($request->has('name')) $updateData['name'] = $request->name;
+        if ($request->has('last_name')) $updateData['last_name'] = $request->last_name;
+        if ($request->has('email')) $updateData['email'] = $request->email;
+        if ($request->has('birth_date')) $updateData['birth_date'] = $request->birth_date;
+        if ($request->has('gender')) $updateData['gender'] = $request->gender;
+        if ($request->has('phone')) $updateData['phone'] = $request->phone;
+
+        if (!empty($updateData)) {
+            $user->update($updateData);
+        }
 
         if ($user->role === 'client') {
-            Address::updateOrCreate(
-                ['user_id' => $user->id, 'alias' => 'Principal'],
-                ['address_line' => $request->address_line]
-            );
+            if ($request->has('address_line') && $request->address_line !== null) {
+                $defaultAddress = Address::where('user_id', $user->id)->where('is_default', true)->first();
+                if ($defaultAddress) {
+                    $defaultAddress->update(['address_line' => $request->address_line]);
+                } else {
+                    Address::create([
+                        'user_id' => $user->id,
+                        'address_line' => $request->address_line,
+                        'alias' => 'Principal',
+                        'is_default' => true
+                    ]);
+                }
+            }
         } else if ($user->role === 'professional') {
             $profile = ProfessionalProfile::where('user_id', $user->id)->first();
             if ($profile) {
@@ -176,6 +189,16 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Perfil actualizado con éxito',
+            'user' => $user
+        ]);
+    }
+
+    public function getProfile(Request $request)
+    {
+        $user = $request->user();
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
             'user' => $user
         ]);
     }

@@ -10,6 +10,7 @@ Route::post('/login', [AuthController::class, 'login']);
 // Rutas protegidas (requieren token)
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/profile', [AuthController::class, 'getProfile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     
     // Rutas de domicilios
