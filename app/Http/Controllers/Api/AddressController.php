@@ -29,19 +29,18 @@ class AddressController extends Controller
         ]);
 
         $user = $request->user();
+        $isFirst = $user->addresses()->count() === 0;
+        $makeDefault = $request->boolean('is_default', $isFirst);
 
-        // If the new address is marked as Principal, rename existing Principal
-        if (strtolower($request->alias) === 'principal') {
-            $user->addresses()->where('alias', 'Principal')->update(['alias' => 'Casa']);
-            $alias = 'Principal';
-        } else {
-            $alias = $request->alias;
+        if ($makeDefault) {
+            $user->addresses()->update(['is_default' => false]);
         }
 
         $address = Address::create([
             'user_id' => $user->id,
             'address_line' => $request->address_line,
-            'alias' => $alias,
+            'alias' => $request->alias,
+            'is_default' => $makeDefault,
         ]);
 
         // Return updated list of addresses
@@ -69,18 +68,18 @@ class AddressController extends Controller
 
         $user = $request->user();
 
-        // If updated to Principal, rename existing Principal
-        if (strtolower($request->alias) === 'principal' && strtolower($address->alias) !== 'principal') {
-            $user->addresses()->where('alias', 'Principal')->update(['alias' => 'Casa']);
-            $alias = 'Principal';
-        } else {
-            $alias = $request->alias;
-        }
-
         $address->update([
             'address_line' => $request->address_line,
-            'alias' => $alias,
+            'alias' => $request->alias,
         ]);
+
+        if ($request->has('is_default')) {
+            $makeDefault = $request->boolean('is_default');
+            if ($makeDefault) {
+                $user->addresses()->where('id', '!=', $address->id)->update(['is_default' => false]);
+                $address->update(['is_default' => true]);
+            }
+        }
 
         return response()->json([
             'message' => 'Domicilio actualizado con éxito',
@@ -100,15 +99,15 @@ class AddressController extends Controller
         }
 
         $user = $request->user();
-        $isPrincipal = strtolower($address->alias) === 'principal';
+        $isDefault = $address->is_default;
 
         $address->delete();
 
-        // If the deleted address was the principal one, promote another one if available
-        if ($isPrincipal) {
+        // If the deleted address was the default one, promote another one if available
+        if ($isDefault) {
             $first = $user->addresses()->first();
             if ($first) {
-                $first->update(['alias' => 'Principal']);
+                $first->update(['is_default' => true]);
             }
         }
 
@@ -130,11 +129,11 @@ class AddressController extends Controller
 
         $user = $request->user();
 
-        // Rename current principal to Casa
-        $user->addresses()->where('alias', 'Principal')->update(['alias' => 'Casa']);
+        // Set all other addresses to is_default = false
+        $user->addresses()->where('id', '!=', $address->id)->update(['is_default' => false]);
 
-        // Set this address as Principal
-        $address->update(['alias' => 'Principal']);
+        // Set this address as default
+        $address->update(['is_default' => true]);
 
         return response()->json([
             'message' => 'Domicilio marcado como principal',

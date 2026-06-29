@@ -48,7 +48,8 @@ class AuthController extends Controller
             Address::create([
                 'user_id' => $user->id,
                 'address_line' => $request->address_line,
-                'alias' => 'Principal'
+                'alias' => 'Principal',
+                'is_default' => true
             ]);
         }
 
@@ -149,10 +150,17 @@ class AuthController extends Controller
 
         if ($user->role === 'client') {
             if ($request->has('address_line') && $request->address_line !== null) {
-                Address::updateOrCreate(
-                    ['user_id' => $user->id, 'alias' => 'Principal'],
-                    ['address_line' => $request->address_line]
-                );
+                $defaultAddress = Address::where('user_id', $user->id)->where('is_default', true)->first();
+                if ($defaultAddress) {
+                    $defaultAddress->update(['address_line' => $request->address_line]);
+                } else {
+                    Address::create([
+                        'user_id' => $user->id,
+                        'address_line' => $request->address_line,
+                        'alias' => 'Principal',
+                        'is_default' => true
+                    ]);
+                }
             }
         } else if ($user->role === 'professional') {
             $profile = ProfessionalProfile::where('user_id', $user->id)->first();
@@ -181,6 +189,16 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Perfil actualizado con éxito',
+            'user' => $user
+        ]);
+    }
+
+    public function getProfile(Request $request)
+    {
+        $user = $request->user();
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
             'user' => $user
         ]);
     }
