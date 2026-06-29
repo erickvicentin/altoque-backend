@@ -22,7 +22,7 @@ class AuthController extends Controller
             'role' => 'required|in:client,professional',
             'birth_date' => 'nullable|date',
             'gender' => 'nullable|string',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', 'string', 'regex:/^\+\d{12}$/'],
             
             // direccion obligatoria de cliente, pero no de profesional
             'address_line' => $request->role === 'client' ? 'required|string|max:255' : 'nullable',            // validaciones fija siendo profesional
@@ -125,7 +125,7 @@ class AuthController extends Controller
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
             'birth_date' => 'nullable|date',
             'gender' => 'nullable|string',
-            'phone' => 'nullable|string',
+            'phone' => ['nullable', 'string', 'regex:/^\+\d{12}$/'],
             'address_line' => 'required_if:role,client|nullable|string|max:255',
             'has_physical_shop' => 'sometimes|boolean',
             'shop_address' => 'required_if:has_physical_shop,true|nullable|string|max:255',
