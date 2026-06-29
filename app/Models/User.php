@@ -52,4 +52,14 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function addresses()
+    {
+        return $this->hasMany(Address::class);
+    }
+
+    public function professionalProfile()
+    {
+        return $this->hasOne(ProfessionalProfile::class);
+    }
 }
