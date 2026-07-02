@@ -166,4 +166,30 @@ class ServiceTest extends TestCase
             ->assertJsonFragment(['name' => 'Active Service'])
             ->assertJsonMissing(['name' => 'Inactive Service']);
     }
+
+    public function test_can_update_professional_working_days()
+    {
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->putJson('/api/profile', [
+                'working_days' => ['Lunes', 'Miércoles', 'Viernes']
+            ]);
+
+        $response->assertStatus(200);
+        
+        $this->assertEquals(
+            ['Lunes', 'Miércoles', 'Viernes'],
+            $this->professional->fresh()->professionalProfile->working_days
+        );
+    }
+
+    public function test_cannot_update_invalid_working_days()
+    {
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->putJson('/api/profile', [
+                'working_days' => ['Lunes', 'invalid-day', 'Viernes']
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['working_days.1']);
+    }
 }

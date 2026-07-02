@@ -20,7 +20,7 @@ class DatabaseSeeder extends Seeder
         if ($profUser && $profUser->professionalProfile) {
             $profile = $profUser->professionalProfile;
             $profile->update([
-                'working_days' => ['Lunes', 'Martes', 'Jueves', 'Sábados']
+                'working_days' => ['Lunes', 'Martes', 'Jueves', 'Sábado']
             ]);
 
             // Limpiamos servicios existentes para evitar duplicaciones

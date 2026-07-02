@@ -134,6 +134,8 @@ class AuthController extends Controller
             'has_second_range' => 'sometimes|boolean',
             'open_time_2' => 'nullable|string',
             'close_time_2' => 'nullable|string',
+            'working_days' => 'sometimes|nullable|array',
+            'working_days.*' => 'string|in:Lunes,Martes,Miércoles,Jueves,Viernes,Sábado,Domingo',
         ]);
 
         $updateData = [];
@@ -178,6 +180,7 @@ class AuthController extends Controller
                 if ($request->has('has_second_range')) $updateData['has_second_range'] = $request->has_second_range;
                 if ($request->has('open_time_2')) $updateData['open_time_2'] = $request->open_time_2;
                 if ($request->has('close_time_2')) $updateData['close_time_2'] = $request->close_time_2;
+                if ($request->has('working_days')) $updateData['working_days'] = $request->working_days;
 
                 if (!empty($updateData)) {
                     $profile->update($updateData);
