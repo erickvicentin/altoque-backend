@@ -192,4 +192,95 @@ class ServiceTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['working_days.1']);
     }
+
+    public function test_can_update_profile_with_valid_day_slots()
+    {
+        $payload = [
+            'working_days' => [
+                'Lunes' => [
+                    'is_active' => true,
+                    'open_time_1' => '08:00',
+                    'close_time_1' => '12:00',
+                    'has_second_range' => true,
+                    'open_time_2' => '15:30',
+                    'close_time_2' => '21:00'
+                ],
+                'Martes' => [
+                    'is_active' => false
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->putJson('/api/profile', $payload);
+
+        $response->assertStatus(200);
+        
+        $dbData = $this->professional->fresh()->professionalProfile->working_days;
+        $this->assertTrue($dbData['Lunes']['is_active']);
+        $this->assertEquals('08:00', $dbData['Lunes']['open_time_1']);
+    }
+
+    public function test_cannot_update_profile_with_overlapping_day_slots()
+    {
+        $payload = [
+            'working_days' => [
+                'Lunes' => [
+                    'is_active' => true,
+                    'open_time_1' => '09:00',
+                    'close_time_1' => '20:00',
+                    'has_second_range' => true,
+                    'open_time_2' => '14:30',
+                    'close_time_2' => '19:00'
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->putJson('/api/profile', $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['working_days.Lunes']);
+    }
+
+    public function test_cannot_update_profile_with_short_duration_slot()
+    {
+        $payload = [
+            'working_days' => [
+                'Lunes' => [
+                    'is_active' => true,
+                    'open_time_1' => '08:00',
+                    'close_time_1' => '08:03', // 3 minutes duration
+                    'has_second_range' => false
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->putJson('/api/profile', $payload);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['working_days.Lunes']);
+    }
+
+    public function test_can_update_profile_with_overnight_non_overlapping_slots()
+    {
+        $payload = [
+            'working_days' => [
+                'Lunes' => [
+                    'is_active' => true,
+                    'open_time_1' => '20:00',
+                    'close_time_1' => '07:00', // overnight
+                    'has_second_range' => true,
+                    'open_time_2' => '08:00', // non-overlapping
+                    'close_time_2' => '12:00'
+                ]
+            ]
+        ];
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->putJson('/api/profile', $payload);
+
+        $response->assertStatus(200);
+    }
 }
