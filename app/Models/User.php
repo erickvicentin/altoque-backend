@@ -20,15 +20,16 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-    'name',
-    'last_name',
-    'email',
-    'password',
-    'role',
-    'birth_date',
-    'gender',
-    'phone',
-];
+        'name',
+        'last_name',
+        'email',
+        'password',
+        'role',
+        'birth_date',
+        'gender',
+        'phone',
+        'avatar_path',
+    ];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -38,6 +39,15 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    /**
+     * The accessors to append to the model's array form.
+     *
+     * @var array<int, string>
+     */
+    protected $appends = [
+        'avatar_url',
     ];
 
     /**
@@ -61,5 +71,13 @@ class User extends Authenticatable
     public function professionalProfile()
     {
         return $this->hasOne(ProfessionalProfile::class);
+    }
+
+    /**
+     * Get the public URL for the user's avatar image.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        return $this->avatar_path ? asset('storage/' . $this->avatar_path) : null;
     }
 }

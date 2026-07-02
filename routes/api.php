@@ -13,6 +13,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [AuthController::class, 'getProfile']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
+    Route::post('/profile/avatar', [AuthController::class, 'uploadAvatar']);
+    Route::delete('/profile/avatar', [AuthController::class, 'deleteAvatar']);
     
     // Rutas de domicilios
     Route::get('/addresses', [AddressController::class, 'index']);

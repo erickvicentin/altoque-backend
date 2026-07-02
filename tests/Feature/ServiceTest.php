@@ -283,4 +283,58 @@ class ServiceTest extends TestCase
 
         $response->assertStatus(200);
     }
+
+    public function test_can_upload_profile_avatar()
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+
+        $file = \Illuminate\Http\UploadedFile::fake()->image('avatar.jpg');
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->postJson('/api/profile/avatar', [
+                'avatar' => $file,
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'message',
+                'avatar_url',
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                    'avatar_path',
+                    'avatar_url',
+                ]
+            ]);
+
+        $this->assertNotNull($this->professional->fresh()->avatar_path);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertExists($this->professional->fresh()->avatar_path);
+    }
+
+    public function test_can_delete_profile_avatar()
+    {
+        \Illuminate\Support\Facades\Storage::fake('public');
+        $file = \Illuminate\Http\UploadedFile::fake()->image('avatar.jpg');
+        $path = \Illuminate\Support\Facades\Storage::disk('public')->put('avatars', $file);
+        $this->professional->update(['avatar_path' => $path]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->deleteJson('/api/profile/avatar');
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'message',
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                    'avatar_path',
+                    'avatar_url',
+                ]
+            ]);
+
+        $this->assertNull($this->professional->fresh()->avatar_path);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertMissing($path);
+    }
 }

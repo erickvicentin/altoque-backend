@@ -261,6 +261,51 @@ class AuthController extends Controller
         ]);
     }
 
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|image|max:2048',
+        ]);
+
+        $user = $request->user();
+
+        // Eliminar avatar anterior del almacenamiento si existía uno
+        if ($user->avatar_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar_path);
+        }
+
+        // Guardar nuevo avatar
+        $path = $request->file('avatar')->store('avatars', 'public');
+
+        $user->update(['avatar_path' => $path]);
+
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
+            'message' => 'Foto de perfil actualizada con éxito',
+            'avatar_url' => $user->avatar_url,
+            'user' => $user
+        ]);
+    }
+
+    public function deleteAvatar(Request $request)
+    {
+        $user = $request->user();
+
+        // Eliminar del almacenamiento físico
+        if ($user->avatar_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar_path);
+            $user->update(['avatar_path' => null]);
+        }
+
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
+            'message' => 'Foto de perfil eliminada con éxito',
+            'user' => $user
+        ]);
+    }
+
     public function getProfile(Request $request)
     {
         $user = $request->user();
