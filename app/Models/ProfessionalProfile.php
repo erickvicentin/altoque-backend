@@ -16,5 +16,17 @@ class ProfessionalProfile extends Model
         'has_second_range',
         'open_time_2',
         'close_time_2',
+        'working_days',
     ];
+
+    protected $casts = [
+        'working_days' => 'array',
+        'has_physical_shop' => 'boolean',
+        'has_second_range' => 'boolean',
+    ];
+
+    public function services()
+    {
+        return $this->hasMany(Service::class);
+    }
 }

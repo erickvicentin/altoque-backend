@@ -134,7 +134,74 @@ class AuthController extends Controller
             'has_second_range' => 'sometimes|boolean',
             'open_time_2' => 'nullable|string',
             'close_time_2' => 'nullable|string',
+            'working_days' => 'sometimes|nullable|array',
         ]);
+
+        if ($request->has('working_days') && is_array($request->working_days)) {
+            foreach ($request->working_days as $day => $schedule) {
+                // Retrocompatibilidad con strings si se envían directamente
+                if (is_string($schedule)) {
+                    if (!in_array($schedule, ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'])) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            "working_days.{$day}" => ["El día '{$schedule}' no es válido."]
+                        ]);
+                    }
+                    continue;
+                }
+
+                if (!in_array($day, ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'])) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'working_days' => ["El día '{$day}' no es válido."]
+                    ]);
+                }
+
+                if (is_array($schedule)) {
+                    if (isset($schedule['is_active']) && $schedule['is_active']) {
+                        if (empty($schedule['open_time_1']) || empty($schedule['close_time_1'])) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                "working_days.{$day}" => ["El día '{$day}' requiere horarios de apertura y cierre para el primer rango."]
+                            ]);
+                        }
+                        if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $schedule['open_time_1']) ||
+                            !preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $schedule['close_time_1'])) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                "working_days.{$day}" => ["Formatos de horario inválidos para '{$day}'."]
+                            ]);
+                        }
+                        if (!$this->isValidTimeRange($schedule['open_time_1'], $schedule['close_time_1'])) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                "working_days.{$day}" => ["La duración del primer rango de '{$day}' debe ser de al menos 5 minutos."]
+                            ]);
+                        }
+
+                        if (isset($schedule['has_second_range']) && $schedule['has_second_range']) {
+                            if (empty($schedule['open_time_2']) || empty($schedule['close_time_2'])) {
+                                throw \Illuminate\Validation\ValidationException::withMessages([
+                                    "working_days.{$day}" => ["El día '{$day}' requiere horarios de apertura y cierre para el segundo rango."]
+                                ]);
+                            }
+                            if (!preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $schedule['open_time_2']) ||
+                                !preg_match('/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/', $schedule['close_time_2'])) {
+                                throw \Illuminate\Validation\ValidationException::withMessages([
+                                    "working_days.{$day}" => ["Formatos de segundo horario inválidos para '{$day}'."]
+                                ]);
+                            }
+                            if (!$this->isValidTimeRange($schedule['open_time_2'], $schedule['close_time_2'])) {
+                                throw \Illuminate\Validation\ValidationException::withMessages([
+                                    "working_days.{$day}" => ["La duración del segundo rango de '{$day}' debe ser de al menos 5 minutos."]
+                                ]);
+                            }
+
+                            if ($this->isOverlapping($schedule['open_time_1'], $schedule['close_time_1'], $schedule['open_time_2'], $schedule['close_time_2'])) {
+                                throw \Illuminate\Validation\ValidationException::withMessages([
+                                    "working_days.{$day}" => ["Los rangos horarios configurados para el día '{$day}' se superponen."]
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         $updateData = [];
         if ($request->has('name')) $updateData['name'] = $request->name;
@@ -178,6 +245,7 @@ class AuthController extends Controller
                 if ($request->has('has_second_range')) $updateData['has_second_range'] = $request->has_second_range;
                 if ($request->has('open_time_2')) $updateData['open_time_2'] = $request->open_time_2;
                 if ($request->has('close_time_2')) $updateData['close_time_2'] = $request->close_time_2;
+                if ($request->has('working_days')) $updateData['working_days'] = $request->working_days;
 
                 if (!empty($updateData)) {
                     $profile->update($updateData);
@@ -193,6 +261,51 @@ class AuthController extends Controller
         ]);
     }
 
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|image|max:2048',
+        ]);
+
+        $user = $request->user();
+
+        // Eliminar avatar anterior del almacenamiento si existía uno
+        if ($user->avatar_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar_path);
+        }
+
+        // Guardar nuevo avatar
+        $path = $request->file('avatar')->store('avatars', 'public');
+
+        $user->update(['avatar_path' => $path]);
+
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
+            'message' => 'Foto de perfil actualizada con éxito',
+            'avatar_url' => $user->avatar_url,
+            'user' => $user
+        ]);
+    }
+
+    public function deleteAvatar(Request $request)
+    {
+        $user = $request->user();
+
+        // Eliminar del almacenamiento físico
+        if ($user->avatar_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar_path);
+            $user->update(['avatar_path' => null]);
+        }
+
+        $user->load($user->role === 'client' ? 'addresses' : 'professionalProfile');
+
+        return response()->json([
+            'message' => 'Foto de perfil eliminada con éxito',
+            'user' => $user
+        ]);
+    }
+
     public function getProfile(Request $request)
     {
         $user = $request->user();
@@ -201,5 +314,31 @@ class AuthController extends Controller
         return response()->json([
             'user' => $user
         ]);
+    }
+
+    private function timeToMinutes(string $time): int
+    {
+        list($hours, $minutes) = explode(':', $time);
+        return ((int)$hours * 60) + (int)$minutes;
+    }
+
+    private function isValidTimeRange(string $open, string $close): bool
+    {
+        $openMin = $this->timeToMinutes($open);
+        $closeMin = $this->timeToMinutes($close);
+        
+        $duration = ($closeMin <= $openMin) ? ($closeMin + 24 * 60) - $openMin : $closeMin - $openMin;
+        return $duration >= 5;
+    }
+
+    private function isOverlapping(string $open1, string $close1, string $open2, string $close2): bool
+    {
+        $startA = $this->timeToMinutes($open1);
+        $endA = ($this->timeToMinutes($close1) <= $startA) ? $this->timeToMinutes($close1) + 24 * 60 : $this->timeToMinutes($close1);
+
+        $startB = $this->timeToMinutes($open2);
+        $endB = ($this->timeToMinutes($close2) <= $startB) ? $this->timeToMinutes($close2) + 24 * 60 : $this->timeToMinutes($close2);
+
+        return max($startA, $startB) < min($endA, $endB);
     }
 }
