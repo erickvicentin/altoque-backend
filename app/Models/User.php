@@ -73,6 +73,11 @@ class User extends Authenticatable
         return $this->hasOne(ProfessionalProfile::class);
     }
 
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class, 'client_id');
+    }
+
     /**
      * Get the public URL for the user's avatar image.
      */

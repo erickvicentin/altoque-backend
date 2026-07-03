@@ -17,6 +17,7 @@ class ProfessionalProfile extends Model
         'open_time_2',
         'close_time_2',
         'working_days',
+        'bio',
     ];
 
     protected $casts = [
@@ -28,5 +29,15 @@ class ProfessionalProfile extends Model
     public function services()
     {
         return $this->hasMany(Service::class);
+    }
+
+    public function appointments()
+    {
+        return $this->hasMany(Appointment::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }
