@@ -1,0 +1,205 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Appointment;
+use App\Models\ProfessionalProfile;
+use App\Models\Service;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class AppointmentTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected $client;
+    protected $professional;
+    protected $profile;
+    protected $service;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->client = User::factory()->create(['role' => 'client']);
+        $this->professional = User::factory()->create(['role' => 'professional']);
+
+        $this->profile = ProfessionalProfile::create([
+            'user_id' => $this->professional->id,
+            'profession' => 'Barberia',
+            'has_physical_shop' => true,
+            'shop_address' => 'Av. Sarmiento 1562',
+            'open_time_1' => '08:00',
+            'close_time_1' => '12:00',
+            'has_second_range' => true,
+            'open_time_2' => '16:00',
+            'close_time_2' => '20:00',
+            'working_days' => ['Lunes', 'Martes', 'Miércoles'],
+        ]);
+
+        $this->service = Service::create([
+            'professional_profile_id' => $this->profile->id,
+            'name' => 'Corte Masculino',
+            'price' => 12000,
+            'duration_minutes' => 60,
+            'is_active' => true,
+        ]);
+    }
+
+    public function test_client_can_book_valid_appointment()
+    {
+        $payload = [
+            'professional_profile_id' => $this->profile->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06', // Lunes (Working day)
+            'start_time' => '09:00', // Within open_time_1 range
+            'notes' => 'Primer turno del día',
+        ];
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->postJson('/api/appointments', $payload);
+
+        $response->assertStatus(201);
+        $response->assertJsonStructure(['message', 'appointment']);
+        $this->assertDatabaseHas('appointments', [
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_cannot_book_appointment_on_non_working_day()
+    {
+        $payload = [
+            'professional_profile_id' => $this->profile->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-05', // Domingo (Non-working day)
+            'start_time' => '09:00',
+        ];
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->postJson('/api/appointments', $payload);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'message' => 'El profesional no atiende en el día de la semana seleccionado.'
+        ]);
+    }
+
+    public function test_cannot_book_appointment_outside_working_hours()
+    {
+        $payload = [
+            'professional_profile_id' => $this->profile->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06', // Lunes
+            'start_time' => '13:00', // Outside of 08:00-12:00 and 16:00-20:00 ranges
+        ];
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->postJson('/api/appointments', $payload);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'message' => 'El horario seleccionado está fuera del horario de atención del profesional.'
+        ]);
+    }
+
+    public function test_cannot_book_overlapping_appointments()
+    {
+        // Book initial appointment: 09:00 - 10:00
+        Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        // Attempt overlap case 1: Completely inside (09:15 - 10:15)
+        $payload = [
+            'professional_profile_id' => $this->profile->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:15',
+        ];
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->postJson('/api/appointments', $payload);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'message' => 'El horario seleccionado se solapa con un turno ya reservado o pendiente.'
+        ]);
+    }
+
+    public function test_can_query_busy_slots()
+    {
+        // Create a couple of bookings
+        Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'accepted',
+        ]);
+
+        Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '17:00',
+            'end_time' => '18:00',
+            'status' => 'pending',
+        ]);
+
+        // Query busy slots
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->getJson("/api/professionals/{$this->profile->id}/busy-slots?date=2026-07-06");
+
+        $response->assertStatus(200);
+        $response->assertJsonCount(2);
+        $response->assertJsonFragment([
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'accepted',
+        ]);
+        $response->assertJsonFragment([
+            'start_time' => '17:00',
+            'end_time' => '18:00',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_client_can_list_their_appointments()
+    {
+        Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'accepted',
+        ]);
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->getJson("/api/appointments");
+
+        $response->assertStatus(200);
+        $response->assertJsonCount(1);
+        $response->assertJsonFragment([
+            'start_time' => '09:00',
+            'status' => 'accepted',
+        ]);
+    }
+}
