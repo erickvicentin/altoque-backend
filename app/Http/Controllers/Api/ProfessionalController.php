@@ -99,6 +99,12 @@ class ProfessionalController extends Controller
                 'working_days' => $profile ? $profile->working_days : [],
                 'bio' => $profile ? $profile->bio : null,
                 'phone' => $user->phone,
+                'open_time_1' => $profile ? $profile->open_time_1 : '08:00',
+                'close_time_1' => $profile ? $profile->close_time_1 : '12:00',
+                'has_second_range' => $profile ? (bool)$profile->has_second_range : false,
+                'open_time_2' => $profile ? $profile->open_time_2 : '15:30',
+                'close_time_2' => $profile ? $profile->close_time_2 : '21:00',
+                'professional_profile_id' => $profile ? $profile->id : null,
             ];
         });
 
