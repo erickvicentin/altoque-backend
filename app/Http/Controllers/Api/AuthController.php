@@ -135,6 +135,7 @@ class AuthController extends Controller
             'open_time_2' => 'nullable|string',
             'close_time_2' => 'nullable|string',
             'working_days' => 'sometimes|nullable|array',
+            'bio' => 'nullable|string|max:240',
         ]);
 
         if ($request->has('working_days') && is_array($request->working_days)) {
@@ -246,6 +247,7 @@ class AuthController extends Controller
                 if ($request->has('open_time_2')) $updateData['open_time_2'] = $request->open_time_2;
                 if ($request->has('close_time_2')) $updateData['close_time_2'] = $request->close_time_2;
                 if ($request->has('working_days')) $updateData['working_days'] = $request->working_days;
+                if ($request->has('bio')) $updateData['bio'] = $request->bio;
 
                 if (!empty($updateData)) {
                     $profile->update($updateData);

@@ -17,6 +17,7 @@ class ProfessionalProfile extends Model
         'open_time_2',
         'close_time_2',
         'working_days',
+        'bio',
     ];
 
     protected $casts = [

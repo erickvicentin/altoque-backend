@@ -97,6 +97,7 @@ class ProfessionalController extends Controller
                 'profession' => $rawProfession,
                 'shop_address' => $profile ? $profile->shop_address : null,
                 'working_days' => $profile ? $profile->working_days : [],
+                'bio' => $profile ? $profile->bio : null,
             ];
         });
 

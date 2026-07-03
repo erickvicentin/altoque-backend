@@ -117,4 +117,28 @@ class ProfessionalTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonCount(0);
     }
+
+    public function test_professional_can_update_bio()
+    {
+        $response = $this->actingAs($this->barber, 'sanctum')
+            ->putJson('/api/profile', [
+                'bio' => 'Hola, soy un barbero con 5 años de experiencia.'
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('user.professional_profile.bio', 'Hola, soy un barbero con 5 años de experiencia.');
+
+        $this->assertEquals('Hola, soy un barbero con 5 años de experiencia.', $this->barber->fresh()->professionalProfile->bio);
+    }
+
+    public function test_professional_cannot_update_bio_longer_than_240_characters()
+    {
+        $longBio = str_repeat('a', 241);
+        $response = $this->actingAs($this->barber, 'sanctum')
+            ->putJson('/api/profile', [
+                'bio' => $longBio
+            ]);
+
+        $response->assertStatus(422);
+    }
 }
