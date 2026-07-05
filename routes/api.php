@@ -37,4 +37,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/professionals/{id}/busy-slots', [AppointmentController::class, 'getBusySlots']);
     Route::post('/appointments', [AppointmentController::class, 'store']);
     Route::patch('/appointments/{appointment}/status', [AppointmentController::class, 'updateStatus']);
+    Route::get('/appointments/{appointment}', [AppointmentController::class, 'show']);
+    Route::patch('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel']);
 });

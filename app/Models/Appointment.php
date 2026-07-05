@@ -13,6 +13,7 @@ class Appointment extends Model
         'professional_profile_id',
         'client_id',
         'service_id',
+        'address_id',
         'date',
         'start_time',
         'end_time',
@@ -34,5 +35,10 @@ class Appointment extends Model
     public function service()
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function address()
+    {
+        return $this->belongsTo(Address::class);
     }
 }
