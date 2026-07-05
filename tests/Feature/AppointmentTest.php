@@ -202,4 +202,304 @@ class AppointmentTest extends TestCase
             'status' => 'accepted',
         ]);
     }
+
+    public function test_professional_can_accept_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'accepted',
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('appointment.status', 'accepted');
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'accepted',
+        ]);
+    }
+
+    public function test_professional_can_reject_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'rejected',
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('appointment.status', 'rejected');
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'rejected',
+        ]);
+    }
+
+    public function test_unauthorized_user_cannot_update_appointment_status()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        // A client cannot update status
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'accepted',
+            ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_invalid_status_cannot_be_set()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'invalid_status',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_client_can_view_appointment_details()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->getJson("/api/appointments/{$appointment->id}");
+
+        $response->assertStatus(200);
+        $response->assertJsonStructure(['id', 'status', 'client', 'service', 'professional_profile']);
+    }
+
+    public function test_client_can_cancel_appointment_more_than_one_hour_before()
+    {
+        // Tomorrow at 10:00 (more than 1 hour away)
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => date('Y-m-d', strtotime('+1 day')),
+            'start_time' => '10:00',
+            'end_time' => '11:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/cancel");
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_client_cannot_cancel_appointment_less_than_one_hour_before()
+    {
+        // Today, 30 minutes from now (less than 1 hour away)
+        $date = date('Y-m-d');
+        $startTime = date('H:i', time() + 1800);
+        $endTime = date('H:i', time() + 5400);
+
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => $date,
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/cancel");
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'message' => 'No se puede cancelar el turno faltando menos de 1 hora.'
+        ]);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_unauthorized_user_cannot_cancel_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => date('Y-m-d', strtotime('+1 day')),
+            'start_time' => '10:00',
+            'end_time' => '11:00',
+            'status' => 'pending',
+        ]);
+
+        $otherClient = User::factory()->create(['role' => 'client']);
+
+        $response = $this->actingAs($otherClient, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/cancel");
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_booking_requires_address_when_professional_has_no_physical_shop()
+    {
+        $noShopProfile = ProfessionalProfile::create([
+            'user_id' => User::factory()->create(['role' => 'professional'])->id,
+            'profession' => 'Electricidad',
+            'has_physical_shop' => false,
+            'open_time_1' => '08:00',
+            'close_time_1' => '12:00',
+            'working_days' => ['Lunes', 'Martes', 'Miércoles'],
+        ]);
+
+        $service = Service::create([
+            'professional_profile_id' => $noShopProfile->id,
+            'name' => 'Reparación de enchufe',
+            'price' => 5000,
+            'duration_minutes' => 60,
+            'is_active' => true,
+        ]);
+
+        // Attempting to book without address_id should fail
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->postJson('/api/appointments', [
+                'professional_profile_id' => $noShopProfile->id,
+                'service_id' => $service->id,
+                'date' => '2026-07-06',
+                'start_time' => '09:00',
+            ]);
+
+        $response->assertStatus(422);
+
+        // Create an address for the client
+        $address = \App\Models\Address::create([
+            'user_id' => $this->client->id,
+            'address_line' => 'Calle Falsa 123',
+            'alias' => 'Casa',
+        ]);
+
+        // Booking with correct address_id should succeed
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->postJson('/api/appointments', [
+                'professional_profile_id' => $noShopProfile->id,
+                'service_id' => $service->id,
+                'date' => '2026-07-06',
+                'start_time' => '09:00',
+                'address_id' => $address->id,
+            ]);
+
+        $response->assertStatus(201);
+        $this->assertDatabaseHas('appointments', [
+            'professional_profile_id' => $noShopProfile->id,
+            'address_id' => $address->id,
+        ]);
+    }
+
+    public function test_professional_can_cancel_accepted_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'accepted', // already accepted
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'cancelled',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_professional_cannot_cancel_pending_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending', // pending!
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'cancelled',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados.'
+        ]);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
 }

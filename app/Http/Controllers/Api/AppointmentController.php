@@ -19,7 +19,7 @@ class AppointmentController extends Controller
 
         if ($user->role === 'client') {
             $appointments = Appointment::where('client_id', $user->id)
-                ->with(['professionalProfile.user', 'service'])
+                ->with(['professionalProfile.user', 'service', 'address'])
                 ->orderBy('date', 'desc')
                 ->orderBy('start_time', 'desc')
                 ->get();
@@ -29,7 +29,7 @@ class AppointmentController extends Controller
                 return response()->json([]);
             }
             $appointments = Appointment::where('professional_profile_id', $profile->id)
-                ->with(['client', 'service'])
+                ->with(['client', 'service', 'address'])
                 ->orderBy('date', 'desc')
                 ->orderBy('start_time', 'desc')
                 ->get();
@@ -78,9 +78,24 @@ class AppointmentController extends Controller
             'date' => 'required|date_format:Y-m-d',
             'start_time' => 'required|date_format:H:i',
             'notes' => 'nullable|string',
+            'address_id' => 'nullable|exists:addresses,id',
         ]);
 
         $profile = ProfessionalProfile::findOrFail($request->professional_profile_id);
+
+        if (!$profile->has_physical_shop) {
+            $request->validate([
+                'address_id' => 'required|exists:addresses,id',
+            ]);
+
+            $addressExists = $request->user()->addresses()->where('id', $request->address_id)->exists();
+            if (!$addressExists) {
+                return response()->json([
+                    'message' => 'La dirección seleccionada no es válida para este usuario.'
+                ], 422);
+            }
+        }
+
         $service = Service::findOrFail($request->service_id);
 
         $startTime = $request->start_time;
@@ -190,6 +205,7 @@ class AppointmentController extends Controller
             'professional_profile_id' => $profile->id,
             'client_id' => $request->user()->id,
             'service_id' => $service->id,
+            'address_id' => !$profile->has_physical_shop ? $request->address_id : null,
             'date' => $request->date,
             'start_time' => $startTime,
             'end_time' => $endTime,
@@ -201,5 +217,96 @@ class AppointmentController extends Controller
             'message' => 'Turno reservado exitosamente y en espera de confirmación.',
             'appointment' => $appointment
         ], 201);
+    }
+
+    /**
+     * Update the status of an appointment.
+     */
+    public function updateStatus(Request $request, Appointment $appointment)
+    {
+        $user = $request->user();
+
+        // Check if the user is the professional associated with the appointment
+        $profile = $user->professionalProfile;
+        if (!$profile || $appointment->professional_profile_id !== $profile->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Validate the request status
+        $request->validate([
+            'status' => 'required|string|in:accepted,rejected,cancelled',
+        ]);
+
+        // business rule: only allow cancel if status is currently accepted
+        if ($request->status === 'cancelled' && $appointment->status !== 'accepted') {
+            return response()->json([
+                'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados.'
+            ], 422);
+        }
+
+        // business rule: only allow accept/reject if status is currently pending
+        if (in_array($request->status, ['accepted', 'rejected']) && $appointment->status !== 'pending') {
+            return response()->json([
+                'message' => 'Solo se pueden aprobar o rechazar turnos en estado pendiente.'
+            ], 422);
+        }
+
+        $appointment->update([
+            'status' => $request->status,
+        ]);
+
+        return response()->json([
+            'message' => 'Estado del turno actualizado con éxito.',
+            'appointment' => $appointment->load(['client', 'service']),
+        ]);
+    }
+
+    /**
+     * Display the specified appointment.
+     */
+    public function show(Appointment $appointment)
+    {
+        $appointment->load(['client', 'service', 'professionalProfile.user', 'address']);
+        return response()->json($appointment);
+    }
+
+    /**
+     * Cancel an appointment (Client).
+     */
+    public function cancel(Request $request, Appointment $appointment)
+    {
+        $user = $request->user();
+
+        // Check if the user is the client who booked the appointment
+        if ($appointment->client_id !== $user->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Check if the appointment is already cancelled
+        if ($appointment->status === 'cancelled') {
+            return response()->json(['message' => 'El turno ya está cancelado.'], 400);
+        }
+
+        // Verify if there is at least 1 hour remaining before the appointment start time
+        $appointmentDateTime = strtotime("{$appointment->date} {$appointment->start_time}");
+        $currentDateTime = time();
+
+        $differenceInSeconds = $appointmentDateTime - $currentDateTime;
+        $differenceInHours = $differenceInSeconds / 3600;
+
+        if ($differenceInHours < 1) {
+            return response()->json([
+                'message' => 'No se puede cancelar el turno faltando menos de 1 hora.'
+            ], 422);
+        }
+
+        $appointment->update([
+            'status' => 'cancelled',
+        ]);
+
+        return response()->json([
+            'message' => 'Turno cancelado exitosamente.',
+            'appointment' => $appointment->load(['client', 'service', 'professionalProfile.user']),
+        ]);
     }
 }
