@@ -234,8 +234,22 @@ class AppointmentController extends Controller
 
         // Validate the request status
         $request->validate([
-            'status' => 'required|string|in:accepted,rejected',
+            'status' => 'required|string|in:accepted,rejected,cancelled',
         ]);
+
+        // business rule: only allow cancel if status is currently accepted
+        if ($request->status === 'cancelled' && $appointment->status !== 'accepted') {
+            return response()->json([
+                'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados.'
+            ], 422);
+        }
+
+        // business rule: only allow accept/reject if status is currently pending
+        if (in_array($request->status, ['accepted', 'rejected']) && $appointment->status !== 'pending') {
+            return response()->json([
+                'message' => 'Solo se pueden aprobar o rechazar turnos en estado pendiente.'
+            ], 422);
+        }
 
         $appointment->update([
             'status' => $request->status,

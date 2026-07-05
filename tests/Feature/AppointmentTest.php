@@ -451,4 +451,55 @@ class AppointmentTest extends TestCase
             'address_id' => $address->id,
         ]);
     }
+
+    public function test_professional_can_cancel_accepted_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'accepted', // already accepted
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'cancelled',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'cancelled',
+        ]);
+    }
+
+    public function test_professional_cannot_cancel_pending_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending', // pending!
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'cancelled',
+            ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonFragment([
+            'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados.'
+        ]);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
 }
