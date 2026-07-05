@@ -495,11 +495,35 @@ class AppointmentTest extends TestCase
 
         $response->assertStatus(422);
         $response->assertJsonFragment([
-            'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados.'
+            'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados o bloqueados.'
         ]);
         $this->assertDatabaseHas('appointments', [
             'id' => $appointment->id,
             'status' => 'pending',
+        ]);
+    }
+
+    public function test_professional_can_cancel_blocked_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => null,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'blocked', // blocked slot!
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'cancelled',
+            ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'cancelled',
         ]);
     }
 }

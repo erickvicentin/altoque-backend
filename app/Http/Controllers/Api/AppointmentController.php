@@ -17,6 +17,21 @@ class AppointmentController extends Controller
     {
         $user = $request->user();
 
+        // Lazy update: Mark past accepted appointments as completed
+        $now = now();
+        $todayDate = $now->toDateString();
+        $currentTime = $now->toTimeString();
+
+        Appointment::where('status', 'accepted')
+            ->where(function ($query) use ($todayDate, $currentTime) {
+                $query->where('date', '<', $todayDate)
+                      ->orWhere(function ($q) use ($todayDate, $currentTime) {
+                          $q->where('date', $todayDate)
+                            ->where('end_time', '<', $currentTime);
+                      });
+            })
+            ->update(['status' => 'completed']);
+
         if ($user->role === 'client') {
             $appointments = Appointment::where('client_id', $user->id)
                 ->with(['professionalProfile.user', 'service', 'address'])
@@ -82,8 +97,10 @@ class AppointmentController extends Controller
         ]);
 
         $profile = ProfessionalProfile::findOrFail($request->professional_profile_id);
+        $user = $request->user();
+        $isProfessional = $user->role === 'professional';
 
-        if (!$profile->has_physical_shop) {
+        if (!$isProfessional && !$profile->has_physical_shop) {
             $request->validate([
                 'address_id' => 'required|exists:addresses,id',
             ]);
@@ -203,18 +220,18 @@ class AppointmentController extends Controller
         // Store
         $appointment = Appointment::create([
             'professional_profile_id' => $profile->id,
-            'client_id' => $request->user()->id,
+            'client_id' => $isProfessional ? null : $user->id,
             'service_id' => $service->id,
-            'address_id' => !$profile->has_physical_shop ? $request->address_id : null,
+            'address_id' => (!$isProfessional && !$profile->has_physical_shop) ? $request->address_id : null,
             'date' => $request->date,
             'start_time' => $startTime,
             'end_time' => $endTime,
-            'status' => 'pending',
+            'status' => $isProfessional ? 'blocked' : 'pending',
             'notes' => $request->notes,
         ]);
 
         return response()->json([
-            'message' => 'Turno reservado exitosamente y en espera de confirmación.',
+            'message' => $isProfessional ? 'Slot bloqueado exitosamente.' : 'Turno reservado exitosamente y en espera de confirmación.',
             'appointment' => $appointment
         ], 201);
     }
@@ -237,10 +254,10 @@ class AppointmentController extends Controller
             'status' => 'required|string|in:accepted,rejected,cancelled',
         ]);
 
-        // business rule: only allow cancel if status is currently accepted
-        if ($request->status === 'cancelled' && $appointment->status !== 'accepted') {
+        // business rule: only allow cancel if status is currently accepted or blocked
+        if ($request->status === 'cancelled' && !in_array($appointment->status, ['accepted', 'blocked'])) {
             return response()->json([
-                'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados.'
+                'message' => 'Solo se pueden cancelar turnos que ya hayan sido confirmados o bloqueados.'
             ], 422);
         }
 
@@ -266,6 +283,20 @@ class AppointmentController extends Controller
      */
     public function show(Appointment $appointment)
     {
+        // Lazy update: check if this individual appointment is accepted and in the past
+        if ($appointment->status === 'accepted') {
+            $now = now();
+            $todayDate = $now->toDateString();
+            $currentTime = $now->toTimeString();
+
+            $isPastDate = $appointment->date < $todayDate;
+            $isPastTimeToday = ($appointment->date === $todayDate && $appointment->end_time < $currentTime);
+            
+            if ($isPastDate || $isPastTimeToday) {
+                $appointment->update(['status' => 'completed']);
+            }
+        }
+
         $appointment->load(['client', 'service', 'professionalProfile.user', 'address']);
         return response()->json($appointment);
     }
