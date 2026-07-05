@@ -85,6 +85,40 @@ class ProfessionalController extends Controller
                 'isTop' => false
             ];
 
+            $responseTimeStr = 'N/A';
+            if ($profile) {
+                $appointments = \App\Models\Appointment::where('professional_profile_id', $profile->id)
+                    ->whereNotNull('client_id')
+                    ->whereIn('status', ['accepted', 'rejected', 'completed', 'cancelled'])
+                    ->get(['created_at', 'updated_at']);
+
+                $totalSeconds = 0;
+                $count = 0;
+                foreach ($appointments as $app) {
+                    $diff = abs($app->updated_at->diffInSeconds($app->created_at));
+                    $totalSeconds += $diff;
+                    $count++;
+                }
+
+                if ($count > 0) {
+                    $avgSeconds = $totalSeconds / $count;
+                    $minutes = round($avgSeconds / 60);
+                    if ($minutes < 1) {
+                        $responseTimeStr = 'Inmediato';
+                    } elseif ($minutes < 60) {
+                        $responseTimeStr = $minutes . ' min';
+                    } else {
+                        $hours = round($minutes / 60);
+                        if ($hours < 24) {
+                            $responseTimeStr = $hours . ($hours == 1 ? ' hora' : ' hs');
+                        } else {
+                            $days = round($hours / 24);
+                            $responseTimeStr = $days . ($days == 1 ? ' día' : ' días');
+                        }
+                    }
+                }
+            }
+
             return [
                 'id' => $user->id,
                 'name' => $fullName,
@@ -105,6 +139,8 @@ class ProfessionalController extends Controller
                 'open_time_2' => $profile ? $profile->open_time_2 : '15:30',
                 'close_time_2' => $profile ? $profile->close_time_2 : '21:00',
                 'professional_profile_id' => $profile ? $profile->id : null,
+                'response_time' => $responseTimeStr,
+                'responseTime' => $responseTimeStr,
             ];
         });
 
