@@ -202,4 +202,103 @@ class AppointmentTest extends TestCase
             'status' => 'accepted',
         ]);
     }
+
+    public function test_professional_can_accept_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'accepted',
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('appointment.status', 'accepted');
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'accepted',
+        ]);
+    }
+
+    public function test_professional_can_reject_appointment()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'rejected',
+            ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonPath('appointment.status', 'rejected');
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'rejected',
+        ]);
+    }
+
+    public function test_unauthorized_user_cannot_update_appointment_status()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        // A client cannot update status
+        $response = $this->actingAs($this->client, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'accepted',
+            ]);
+
+        $response->assertStatus(403);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_invalid_status_cannot_be_set()
+    {
+        $appointment = Appointment::create([
+            'professional_profile_id' => $this->profile->id,
+            'client_id' => $this->client->id,
+            'service_id' => $this->service->id,
+            'date' => '2026-07-06',
+            'start_time' => '09:00',
+            'end_time' => '10:00',
+            'status' => 'pending',
+        ]);
+
+        $response = $this->actingAs($this->professional, 'sanctum')
+            ->patchJson("/api/appointments/{$appointment->id}/status", [
+                'status' => 'invalid_status',
+            ]);
+
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $appointment->id,
+            'status' => 'pending',
+        ]);
+    }
 }

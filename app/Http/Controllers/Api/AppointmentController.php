@@ -202,4 +202,32 @@ class AppointmentController extends Controller
             'appointment' => $appointment
         ], 201);
     }
+
+    /**
+     * Update the status of an appointment.
+     */
+    public function updateStatus(Request $request, Appointment $appointment)
+    {
+        $user = $request->user();
+
+        // Check if the user is the professional associated with the appointment
+        $profile = $user->professionalProfile;
+        if (!$profile || $appointment->professional_profile_id !== $profile->id) {
+            return response()->json(['message' => 'No autorizado'], 403);
+        }
+
+        // Validate the request status
+        $request->validate([
+            'status' => 'required|string|in:accepted,rejected',
+        ]);
+
+        $appointment->update([
+            'status' => $request->status,
+        ]);
+
+        return response()->json([
+            'message' => 'Estado del turno actualizado con éxito.',
+            'appointment' => $appointment->load(['client', 'service']),
+        ]);
+    }
 }
