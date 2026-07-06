@@ -186,7 +186,7 @@ class AppointmentTest extends TestCase
             'professional_profile_id' => $this->profile->id,
             'client_id' => $this->client->id,
             'service_id' => $this->service->id,
-            'date' => '2026-07-06',
+            'date' => date('Y-m-d', strtotime('+1 day')),
             'start_time' => '09:00',
             'end_time' => '10:00',
             'status' => 'accepted',
